@@ -1,0 +1,15 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Source Sans Pro', sans-serif;
+}
+
+.no-padding {
+  padding: 0 !important;
+}
+
+.requestButtonPositioning {
+  text-align: right;
+  padding: 5px 5px 5px 5px;
+}
