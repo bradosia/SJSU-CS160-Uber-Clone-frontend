@@ -1,4 +1,4 @@
-import mapboxgl from "mapbox-gl";
+import mapboxgl from "!mapbox-gl";
 import TripService from '../TripService/emitter';
 
 let routeMap = new Map();
