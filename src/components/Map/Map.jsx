@@ -5,10 +5,14 @@ import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
 import "../../styles/Map.css";
 import "mapbox-gl/dist/mapbox-gl.css"; // for zoom and navigation control
 import "react-map-gl-geocoder/dist/mapbox-gl-geocoder.css";
-import getRoute from "./Navigation";
+import setRoute from "./Navigation";
 import TripService from "../TripService/emitter";
 //import loadRiderLocation from "./loadRiderLocation";
 //import loadDriverLocation from "./loadDriverLocation";
+
+import driverIcon from './driverIcon.png';
+import riderIcon from './riderIcon.png';
+import routeEndIcon from './routeEndIcon.png';
 
 const ACCESS_TOKEN = "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4M29iazA2Z2gycXA4N2pmbDZmangifQ.-g_vE53SD2WrJ6tFX7QHmA";
 mapboxgl.accessToken = ACCESS_TOKEN;
@@ -28,6 +32,7 @@ class App extends Component {
     this.mapContainerRef = React.createRef();
     this.userLong = 0.0;
     this.userLat = 0.0;
+    this.userHeading = 0.0;
     this.userType = props.userType;
     this.viewLongInit = -121.9098;
     this.viewLatInit = 37.3413;
@@ -52,27 +57,39 @@ class App extends Component {
   refreshMarkers = (mapObj) => {
     let driverFeatureArray = [];
     let riderFeatureArray = [];
-    for (let [key, value] of this.locationMap) {
-      if (value.type == "driver") {
+    let timeThreshold = Date.now() - 20000;
+    for (let [socketId, userObjRef] of this.locationMap) {
+      if (userObjRef.timestamp < timeThreshold) {
+        this.locationMap.delete(socketId);
+        continue;
+      }
+      // set heading to 0 (north) if not set
+      // old server version did not have heading
+      if(!userObjRef.heading){
+        userObjRef.heading = 0;
+      }
+      if (userObjRef.type == "driver") {
         driverFeatureArray.push({
           type: "Feature",
           geometry: {
             type: "Point",
-            coordinates: [value.long, value.lat]
+            coordinates: [userObjRef.long, userObjRef.lat]
           },
           properties: {
-            title: value.socketId
+            title: userObjRef.socketId,
+            "rotate": userObjRef.heading
           }
         });
-      } else if (value.type == "rider") {
+      } else if (userObjRef.type == "rider") {
         riderFeatureArray.push({
           type: "Feature",
           geometry: {
             type: "Point",
-            coordinates: [value.long, value.lat]
+            coordinates: [userObjRef.long, userObjRef.lat]
           },
           properties: {
-            title: value.socketId
+            title: userObjRef.socketId,
+            "rotate": userObjRef.heading
           }
         });
       }
@@ -97,112 +114,73 @@ class App extends Component {
   }
 
   mapLoaded = () => {
+    // Load an image from an external URL.
+    this.mapboxObj.loadImage(driverIcon, (error, image) => {
+      if (error)
+        throw error;
+
+      // Add the image to the map style.
+      this.mapboxObj.addImage('driverIcon', image);
+    });
+
+    this.mapboxObj.loadImage(riderIcon, (error, image) => {
+      if (error)
+        throw error;
+
+      // Add the image to the map style.
+      this.mapboxObj.addImage('riderIcon', image);
+    });
+
+    this.mapboxObj.loadImage(routeEndIcon, (error, image) => {
+      if (error)
+        throw error;
+
+      // Add the image to the map style.
+      this.mapboxObj.addImage('routeEndIcon', image);
+    });
+
     // Add driver symbol layer
     this.mapboxObj.addLayer({
       id: "driverPoints",
-      type: "circle",
+      type: "symbol",
       source: {
         type: "geojson",
         data: {
           type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              properties: {},
-              geometry: {
-                type: "Point",
-                coordinates: [0, 0]
-              }
-            }
-          ]
+          features: []
         }
       },
-      paint: {
-        "circle-radius": 10,
-        "circle-color": "#0000ff"
+      'layout': {
+        'icon-image': 'driverIcon', // reference the image
+        'icon-size': 0.05,
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        "icon-rotate": ["get", "rotate"]
       }
     });
 
     // Add rider symbol layer
     this.mapboxObj.addLayer({
       id: "riderPoints",
-      type: "circle",
+      type: "symbol",
       source: {
         type: "geojson",
         data: {
           type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              properties: {},
-              geometry: {
-                type: "Point",
-                coordinates: [0, 0]
-              }
-            }
-          ]
+          features: []
         }
       },
-      paint: {
-        "circle-radius": 5,
-        "circle-color": "#f08"
-      }
-    });
-
-    // Add route starting point to the map
-    this.mapboxObj.addLayer({
-      id: "routeStartPoint",
-      type: "circle",
-      source: {
-        type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              properties: {},
-              geometry: {
-                type: "Point",
-                coordinates: [0, 0]
-              }
-            }
-          ]
-        }
-      },
-      paint: {
-        "circle-radius": 10,
-        "circle-color": "#3887be"
-      }
-    });
-
-    // Add route ending point to the map
-    this.mapboxObj.addLayer({
-      id: "routeEndPoint",
-      type: "circle",
-      source: {
-        type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              properties: {},
-              geometry: {
-                type: "Point",
-                coordinates: [0, 0]
-              }
-            }
-          ]
-        }
-      },
-      paint: {
-        "circle-radius": 10,
-        "circle-color": "#f30"
+      'layout': {
+        'icon-image': 'riderIcon', // reference the image
+        'icon-size': 0.3,
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        "icon-rotate": ["get", "rotate"]
       }
     });
 
     TripService.on("positionData", this.onPositionData);
-    TripService.on("setDestination", this.setDestination);
+    TripService.on("setRoute", this.setRoute);
     this.mapboxObj.on("click", this.onClick);
 
     // centers the map on your current location
@@ -216,16 +194,23 @@ class App extends Component {
   onPositionData = (data) => {
     //console.log("Position Data Received:");
     //console.log(data);
+    /*
+    Example:
+    {
+      lat: 37.34293857374593,
+      long: -121.96381019791124,
+      socketId: "3eXdAmTYVU8PVZ4rAAAZ",
+      timestamp: 1651802163469,
+      token: 0,
+      type: "driver"
+    }
+    */
     this.locationMap.set(data.socketId, data);
   };
 
   onClick = (event) => {
-    // drivers to not set the route
-    if (this.userType == "driver") {
-      return;
-    }
     // console.log(event);
-    this.setDestination({"routeEndLong": event.lngLat.lng, "routeEndLat": event.lngLat.lat});
+    this.getDestination({"routeEndLong": event.lngLat.lng, "routeEndLat": event.lngLat.lat});
   }
 
   /* MapboxGeocoder
@@ -235,33 +220,14 @@ Fired when input is set */
     if (!e) {
       return;
     }
-    // drivers to not set the route
-    if (this.userType == "driver") {
-      return;
-    }
     // set variables
-    this.setDestination({"routeEndLong": e.result.center[0], "routeEndLat": e.result.center[1]});
+    this.getDestination({"routeEndLong": e.result.center[0], "routeEndLat": e.result.center[1]});
   }
 
-  setDestination = (data) => {
+  getDestination = (data) => {
     // set variables
     this.routeEndLong = data.routeEndLong;
     this.routeEndLat = data.routeEndLat;
-    // update UI with end position marker
-    const endFeatures = {
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          properties: {},
-          geometry: {
-            type: "Point",
-            coordinates: [this.routeEndLong, this.routeEndLat]
-          }
-        }
-      ]
-    };
-    this.mapboxObj.getSource("routeEndPoint").setData(endFeatures);
     // emit for other components to use
     TripService.emit("destinationSelected", {
       "routeStartLong": this.routeStartLong,
@@ -269,25 +235,28 @@ Fired when input is set */
       "routeEndLong": this.routeEndLong,
       "routeEndLat": this.routeEndLat
     });
-    // get route information from API
-    let returnStatus = getRoute(this.mapboxObj, {
-      "routeStartLong": this.routeStartLong,
-      "routeStartLat": this.routeStartLat,
-      "routeEndLong": this.routeEndLong,
-      "routeEndLat": this.routeEndLat
-    });
+  }
+
+  setRoute = (data) => {
+    // set route with information from API
+    let returnStatus = setRoute(this.mapboxObj, data);
+    return returnStatus;
   }
 
   onGeolocate = (position) => {
+    //console.log("onGeolocate");
+    //console.log(position);
     // set class member variables
     this.userLong = position.coords.longitude;
     this.userLat = position.coords.latitude;
+    this.userHeading = position.coords.heading;
     this.routeStartLong = this.userLong;
     this.routeStartLat = this.userLat;
     // emit user location
     let positionData = {};
     positionData.long = position.coords.longitude;
     positionData.lat = position.coords.latitude;
+    positionData.heading = position.coords.heading;
     TripService.emit("onGeolocatePositionUpdate", positionData);
   }
 
@@ -361,7 +330,7 @@ Fired when input is set */
     this.geocoder.off('result', this.onGeocoderResult);
     if (this.mapLoadedFlag) {
       TripService.off("positionData", this.onPositionData);
-      TripService.off("setDestination", this.setDestination);
+      TripService.off("setRoute", this.setRoute);
       this.mapboxObj.off("click", this.onClick);
     }
   }

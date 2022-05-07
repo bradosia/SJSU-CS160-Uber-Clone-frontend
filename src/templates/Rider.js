@@ -1,4 +1,4 @@
-import React, {Component, useEffect} from 'react';
+import React, {Component} from 'react';
 import '../styles/App.css'
 import Map from '../components/Map/Map'
 import RideTypeSelection from '../components/RideTypeSelection/RideTypeSelection'
@@ -26,7 +26,9 @@ class App extends Component {
     this.abort = false;
     this.userLong = 0.0;
     this.userLat = 0.0;
+    this.userHeading = 0.0;
     this.type = "rider";
+    this.flagRideRequested = false;
 
     this.state = {
       tripStatsBlock: "",
@@ -40,6 +42,7 @@ class App extends Component {
     TripService.emit("positionUpdate", {
       "long": this.userLong,
       "lat": this.userLat,
+      "heading": this.userHeading,
       "type": this.type,
       "token": localStorage.getItem("token")
     });
@@ -61,43 +64,58 @@ class App extends Component {
   onGeolocatePositionUpdate = (data) => {
     this.userLong = data.long;
     this.userLat = data.lat;
+    this.userHeading = data.heading;
     this.positionUpdate();
   }
 
   destinationSelected = (data) => {
     // console.log("destinationSelected Data Received:");
     // console.log(data);
+    // Do not set a map route if a ride is already requested
+    if(this.flagRideRequested){
+      return ;
+    }
     this.setState({
       messageBlock: data.message, tripBlock: <><p> Select Ride Type: </p> < RideTypeSelection />< p className = "requestButtonPositioning" > <RequestRideButton routeStartLat={data.routeStartLat} routeStartLong={data.routeStartLong} routeEndLat={data.routeEndLat} routeEndLong={data.routeEndLong}/></p>
     </>
     });
+    // set the map route
+    TripService.emit("setRoute", {
+      "routeId": "main",
+      "startLat": this.userLat,
+      "startLong": this.userLong,
+      "endLat": data.routeEndLat,
+      "endLong": data.routeEndLong
+    });
   }
 
-  tripEstimateData = (data) => {
-    this.tripDuration = Math.floor(data.data.duration / 60);
-    this.tripDistance = Math.floor(data.data.distance / 1000);
+  mapNewRoute = (data) => {
+    if (data.routeId !== "main") {
+      return;
+    }
+    this.tripDuration = Math.floor(data.duration / 60);
+    this.tripDistance = Math.floor(data.distance / 1000);
     this.setState({
-      messageBlock: data.message,
       tripStatsBlock: <> < p > Trip Stats: </p>
     <p>Trip duration: {
         this.tripDuration
-      }
-      minutes < br /> Trip distance: {
+      }<> < />minutes < br / > Trip distance: {
         this.tripDistance
-      }
-      miles < /p> < / >
+      } < > </>miles < /p> < / >
     });
   }
 
   requestRideProgress = (data) => {
     console.log("requestRideProgress Data Received:");
     console.log(data);
+    this.flagRideRequested = true;
     this.setState({messageBlock: data.message});
   }
 
   requestRideStop = (data) => {
     console.log("requestRideStop Data Received:");
     console.log(data);
+    this.flagRideRequested = false;
     this.setState({messageBlock: data.message});
   }
 
@@ -121,6 +139,7 @@ class App extends Component {
   tripDriverToRiderStop = (data) => {
     console.log("tripDriverToRiderStop Data Received:");
     console.log(data);
+    this.flagRideRequested = false;
     this.setState({
       messageBlock: data.message,
       tripBlock: <> < RideTypeSelection />< p className = "requestButtonPositioning" > <RequestRideButton/></p>
@@ -147,13 +166,14 @@ class App extends Component {
   tripTogetherStop = (data) => {
     console.log("tripTogetherStop Data Received:");
     console.log(data);
+    this.flagRideRequested = false;
     this.initialState();
   }
 
-  tripEndRider = (data) => {
-    console.log("tripBeginRider Data Received:");
+  tripTogetherSuccess = (data) => {
+    console.log("tripTogetherSuccess Data Received:");
     console.log(data);
-    this.setState({tripBlock: <Rate/>});
+    this.flagRideRequested = false;
   }
 
   rateBegin = (data) => {
@@ -174,7 +194,7 @@ class App extends Component {
     this.abort = false;
     TripService.on('onGeolocatePositionUpdate', this.onGeolocatePositionUpdate);
     TripService.on('destinationSelected', this.destinationSelected);
-    TripService.on("tripEstimateData", this.tripEstimateData);
+    TripService.on("mapNewRoute", this.mapNewRoute);
     TripService.on('requestRideProgress', this.requestRideProgress);
     TripService.on('requestRideStop', this.requestRideStop);
     TripService.on('tripDriverToRiderBegin', this.tripDriverToRiderBegin);
@@ -183,6 +203,7 @@ class App extends Component {
     TripService.on('tripTogetherBegin', this.tripTogetherBegin);
     TripService.on('tripTogetherProgress', this.tripTogetherProgress);
     TripService.on('tripTogetherStop', this.tripTogetherStop);
+    TripService.on('tripTogetherSuccess', this.tripTogetherSuccess);
     TripService.on('rateBegin', this.rateBegin);
     TripService.on('rateDone', this.rateDone);
   };
@@ -191,7 +212,7 @@ class App extends Component {
     this.abort = true;
     TripService.off('onGeolocatePositionUpdate', this.onGeolocatePositionUpdate);
     TripService.off('destinationSelected', this.destinationSelected);
-    TripService.off("tripEstimateData", this.tripEstimateData);
+    TripService.off("mapNewRoute", this.mapNewRoute);
     TripService.off('requestRideProgress', this.requestRideProgress);
     TripService.off('requestRideStop', this.requestRideStop);
     TripService.off('tripDriverToRiderBegin', this.tripDriverToRiderBegin);
@@ -200,6 +221,7 @@ class App extends Component {
     TripService.off('tripTogetherBegin', this.tripTogetherBegin);
     TripService.off('tripTogetherProgress', this.tripTogetherProgress);
     TripService.off('tripTogetherStop', this.tripTogetherStop);
+    TripService.on('tripTogetherSuccess', this.tripTogetherSuccess);
     TripService.off('rateBegin', this.rateBegin);
     TripService.off('rateDone', this.rateDone);
   }
@@ -232,7 +254,8 @@ class App extends Component {
         </ul>
         <p>
           <small>Made with
-            <a href="https://matthewjamestaylor.com/responsive-columns" target="_blank" rel="noopener">Responsive Columns</a>.</small>
+            <a href="https://matthewjamestaylor.com/responsive-columns" target="_blank" rel="noopener">
+              Responsive Columns</a>.</small>
         </p>
       </c1-1>
     </footer>

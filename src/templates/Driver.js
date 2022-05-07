@@ -1,4 +1,4 @@
-import React, {Component, useEffect} from 'react';
+import React, {Component} from 'react';
 import '../styles/App.css'
 import Map from '../components/Map/Map'
 import DriverInstructions from '../components/DriverInstructions/DriverInstructions'
@@ -27,6 +27,7 @@ class App extends Component {
     this.abort = false;
     this.userLong = 0.0;
     this.userLat = 0.0;
+    this.userHeading = 0.0;
     this.endLong = 0.0;
     this.endLat = 0.0;
     this.type = "driver";
@@ -42,6 +43,7 @@ class App extends Component {
     TripService.emit("positionUpdate", {
       "long": this.userLong,
       "lat": this.userLat,
+      "heading": this.userHeading,
       "type": this.type,
       "token": localStorage.getItem("token")
     });
@@ -63,25 +65,25 @@ class App extends Component {
   onGeolocatePositionUpdate = (data) => {
     this.userLong = data.long;
     this.userLat = data.lat;
+    this.userHeading = data.heading;
     this.positionUpdate();
   }
 
   requestRideConfirm = (data) => {
     console.log("requestRideConfirm Data Received:");
     console.log(data);
-    if (data.tripId === undefined) {
-      console.log("requestRideConfirm ERROR");
-      return;
-    }
     this.setState({tripBlock: <DriverConfirmTrip tripId={data.tripId}/>});
   }
 
   tripDriverToRiderBegin = (data) => {
     console.log("tripDriverToRiderBegin Data Received:");
     console.log(data);
-    TripService.emit('setDestination', {
-      "routeEndLong": data.riderLong,
-      "routeEndLat": data.riderLat
+    TripService.emit("setRoute", {
+      "routeId": "main",
+      "startLat": this.userLat,
+      "startLong": this.userLong,
+      "endLat": data.riderLat,
+      "endLong": data.riderLong
     });
     this.setState({
       chatBlock: <Chat/>,
@@ -120,9 +122,12 @@ class App extends Component {
     console.log(data);
     this.endLong = data.endLong;
     this.endLat = data.endLat;
-    TripService.emit('setDestination', {
-      "routeEndLong": this.endLong,
-      "routeEndLat": this.endLat
+    TripService.emit("setRoute", {
+      "routeId": "main",
+      "startLat": this.userLat,
+      "startLong": this.userLong,
+      "endLat": this.endLat,
+      "endLong": this.endLong
     });
     this.setState({
       messageBlock: data.message,
@@ -217,7 +222,7 @@ class App extends Component {
         </ul>
         <p>
           <small>Made with
-            <a href="https://matthewjamestaylor.com/responsive-columns" target="_blank" rel="noopener">Responsive Columns</a>.</small>
+            <a href="https://matthewjamestaylor.com/responsive-columns" target="_blank" rel="noopener"> Responsive Columns</a>.</small>
         </p>
       </c1-1>
     </footer>

@@ -1,4 +1,4 @@
-import React, {Component, useEffect} from 'react';
+import React, {Component} from 'react';
 import axios from "axios";
 import Map from '../components/Map/Map'
 import DriverInstructions from '../components/DriverInstructions/DriverInstructions'
@@ -18,30 +18,83 @@ import '../styles/matthewjamestaylor/r-c.css'
 import '../styles/matthewjamestaylor/r-c-min.css'
 import '../styles/matthewjamestaylor/site-styles.css'
 
-export const MapContext = React.createContext();
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 /* BRAD: This page is for testing all the components available */
 class App extends Component {
   constructor(props) {
     super(props);
 
+    this.userLong = 0.0;
+    this.userLat = 0.0;
+    this.userHeading = 0.0;
+    this.type = "admin";
+    this.abort = false;
+
     this.state = {
-      "tripDuration": "",
-      "tripDistance": ""
+      "tripStatsBlock": ""
+    }
+
+    this.positionUpdateLoop();
+  }
+
+  onGeolocatePositionUpdate = (data) => {
+    this.userLong = data.long;
+    this.userLat = data.lat;
+    this.userHeading = data.heading;
+    this.positionUpdate();
+  }
+
+  positionUpdate = () => {
+    TripService.emit("positionUpdate", {
+      "long": this.userLong,
+      "lat": this.userLat,
+      "heading": this.userHeading,
+      "type": this.type,
+      "token": localStorage.getItem("token")
+    });
+  }
+
+  async positionUpdateLoop() {
+    while (this.abort === false) {
+      this.positionUpdate();
+      await sleep(3000);
     }
   }
 
   destinationSelected = (data) => {
     console.log("destinationSelected Data Received:");
     console.log(data);
+    // set the map route
+    TripService.emit("setRoute", {
+      "routeId": "main",
+      "startLat": data.routeStartLat,
+      "startLong": data.routeStartLong,
+      "endLat": data.routeEndLat,
+      "endLong": data.routeEndLong
+    });
   }
 
-  tripEstimateData = (data) => {
-    this.tripEstimateData = data.data;
-    let tripDuration = Math.floor(this.tripEstimateData.duration / 60);
-    let tripDistance = Math.floor(this.tripEstimateData.distance / 1000);
-
-    this.setState({"tripDuration": `Trip duration: ${tripDuration} minutes`, "tripDistance": `Trip distance: ${tripDistance} miles`});
+  mapNewRoute = (data) => {
+    if (data.routeId !== "main") {
+      return;
+    }
+    this.tripDuration = Math.floor(data.duration / 60);
+    this.tripDistance = Math.floor(data.distance / 1000);
+    this.setState({
+      tripStatsBlock: <> < p > Trip Stats: </p>
+    <p>Trip duration: {
+        this.tripDuration
+      }
+      minutes < br / >Trip distance: {
+        this.tripDistance
+      }
+      miles < /p> < / >
+    });
   }
 
   requestRideProgress = (data) => {
@@ -113,8 +166,9 @@ class App extends Component {
   }
 
   componentDidMount = () => {
+    TripService.on('onGeolocatePositionUpdate', this.onGeolocatePositionUpdate);
     TripService.on('destinationSelected', this.destinationSelected);
-    TripService.on("tripEstimateData", this.tripEstimateData);
+    TripService.on("mapNewRoute", this.mapNewRoute);
     TripService.on('requestRideProgress', this.requestRideProgress);
     TripService.on('requestRideStop', this.requestRideStop);
     TripService.on('tripDriverToRiderBegin', this.tripDriverToRiderBegin);
@@ -128,8 +182,9 @@ class App extends Component {
   };
 
   componentWillUnmount = () => {
+    TripService.off('onGeolocatePositionUpdate', this.onGeolocatePositionUpdate);
     TripService.off('destinationSelected', this.destinationSelected);
-    TripService.off("tripEstimateData", this.tripEstimateData);
+    TripService.off("mapNewRoute", this.mapNewRoute);
     TripService.off('requestRideProgress', this.requestRideProgress);
     TripService.off('requestRideStop', this.requestRideStop);
     TripService.off('tripDriverToRiderBegin', this.tripDriverToRiderBegin);
@@ -145,15 +200,10 @@ class App extends Component {
   render() {
     return (<> < Navbar /> <r-c join="join">
       <main data-md2-3="data-md2-3" className="main-content no-padding">
-        <Map userType='rider'/>
+        <Map userType='admin'/>
       </main>
       <aside data-md1-3="data-md1-3" data-md1="data-md1" className="left-sidebar">
-        < p >
-          Trip Stats:
-        </p>
-        <p>
-          {this.state.tripDuration}
-          < br/> {this.state.tripDistance}</p>
+        {this.state.tripStatsBlock}
         <p>RideTypeSelection:</p>
         <RideTypeSelection/>
         <p>RequestRideButton:</p>
