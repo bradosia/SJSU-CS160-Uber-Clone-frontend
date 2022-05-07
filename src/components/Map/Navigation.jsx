@@ -1,5 +1,7 @@
-import mapboxgl from "!mapbox-gl";
+import mapboxgl from 'mapbox-gl/dist/mapbox-gl';
+import MapboxWorker from 'mapbox-gl/dist/mapbox-gl-csp-worker';
 import TripService from '../TripService/emitter';
+mapboxgl.workerClass = MapboxWorker;
 
 let routeMap = new Map();
 /* Brad: calculateCost and getRoute have been merged
