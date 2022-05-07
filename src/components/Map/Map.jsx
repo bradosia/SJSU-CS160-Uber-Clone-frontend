@@ -1,6 +1,8 @@
 import React, {Component} from "react";
-import mapboxgl from "!mapbox-gl";
+import mapboxgl from 'mapbox-gl/dist/mapbox-gl';
+import MapboxWorker from 'mapbox-gl/dist/mapbox-gl-csp-worker';
 import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
+mapboxgl.workerClass = MapboxWorker;
 
 import "../../styles/Map.css";
 import "mapbox-gl/dist/mapbox-gl.css"; // for zoom and navigation control
