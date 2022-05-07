@@ -2,7 +2,6 @@ import React, {Component} from "react";
 import mapboxgl from 'mapbox-gl/dist/mapbox-gl';
 import MapboxWorker from 'mapbox-gl/dist/mapbox-gl-csp-worker';
 import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
-mapboxgl.workerClass = MapboxWorker;
 
 import "../../styles/Map.css";
 import "mapbox-gl/dist/mapbox-gl.css"; // for zoom and navigation control
@@ -15,6 +14,8 @@ import TripService from "../TripService/emitter";
 import driverIcon from './driverIcon.png';
 import riderIcon from './riderIcon.png';
 import routeEndIcon from './routeEndIcon.png';
+
+mapboxgl.workerClass = MapboxWorker;
 
 const ACCESS_TOKEN = "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4M29iazA2Z2gycXA4N2pmbDZmangifQ.-g_vE53SD2WrJ6tFX7QHmA";
 mapboxgl.accessToken = ACCESS_TOKEN;
