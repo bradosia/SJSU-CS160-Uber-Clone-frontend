@@ -37,9 +37,7 @@
   "eslintConfig": {
     "extends": [
       "react-app",
-      "react-app/jest",
-      "@mapbox/eslint-config-mapbox/react",
-      "@mapbox/eslint-config-mapbox/import"
+      "react-app/jest"
     ]
   },
   "browserslist": {
